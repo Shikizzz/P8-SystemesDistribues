@@ -1,4 +1,4 @@
-package com.openclassrooms.tourguide.user;
+package com.openclassrooms.tourguide.model.user;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -74,7 +74,11 @@ public class User {
 			userRewards.add(userReward);
 		}
 	}
-	
+
+	public void setUserRewards(List<UserReward> userRewards) { //ADDED
+		this.userRewards = userRewards;
+	}
+
 	public List<UserReward> getUserRewards() {
 		return userRewards;
 	}

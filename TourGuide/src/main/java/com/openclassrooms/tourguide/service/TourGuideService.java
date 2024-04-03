@@ -1,20 +1,13 @@
 package com.openclassrooms.tourguide.service;
 
-import com.openclassrooms.tourguide.helper.InternalTestHelper;
+import com.openclassrooms.tourguide.model.DTO.AttractionDTO;
 import com.openclassrooms.tourguide.tracker.Tracker;
-import com.openclassrooms.tourguide.user.User;
-import com.openclassrooms.tourguide.user.UserReward;
+import com.openclassrooms.tourguide.model.user.User;
+import com.openclassrooms.tourguide.model.user.UserReward;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -42,7 +35,7 @@ public class TourGuideService {
 	public TourGuideService(GpsUtil gpsUtil, RewardsService rewardsService) {
 		this.gpsUtil = gpsUtil;
 		this.rewardsService = rewardsService;
-		
+
 		Locale.setDefault(Locale.US);
 
 		if (testMode) {
@@ -95,15 +88,39 @@ public class TourGuideService {
 		return visitedLocation;
 	}
 
-	public List<Attraction> getNearByAttractions(VisitedLocation visitedLocation) {
-		List<Attraction> nearbyAttractions = new ArrayList<>();
+	public TreeMap<Integer, Attraction> getAttractionsDistance(VisitedLocation visitedLocation){
+		TreeMap<Integer, Attraction> sortedDistanceMap = new TreeMap<>();
 		for (Attraction attraction : gpsUtil.getAttractions()) {
-			if (rewardsService.isWithinAttractionProximity(attraction, visitedLocation.location)) {
-				nearbyAttractions.add(attraction);
-			}
+			sortedDistanceMap.put((int) rewardsService.getDistance(visitedLocation.location, attraction), attraction);
 		}
+		return sortedDistanceMap;
+	}
 
+	public List<Attraction> getNearByAttractionsAsList(VisitedLocation visitedLocation) {
+		List<Attraction> nearbyAttractions = new ArrayList<>();
+		TreeMap<Integer, Attraction> sortedAttractionsByDistance = getAttractionsDistance(visitedLocation);
+		for (int i=0; i<5; i++) {
+			nearbyAttractions.add(sortedAttractionsByDistance.firstEntry().getValue());
+			sortedAttractionsByDistance.remove(sortedAttractionsByDistance.firstKey());
+		}
 		return nearbyAttractions;
+	}
+
+	public List<AttractionDTO> getNearByAttractionsAsJson(VisitedLocation visitedLocation) { //TODO Implement
+		List<AttractionDTO> attractionDTOs = new ArrayList<>();
+		TreeMap<Integer, Attraction> sortedDistanceMap = new TreeMap<>();
+		for (Map.Entry<Integer, Attraction> entry : sortedDistanceMap.entrySet()) {
+			AttractionDTO attractionDTO = new AttractionDTO();
+			attractionDTO.setName(entry.getValue().attractionName);
+			attractionDTO.setAttractionsLatitude(entry.getValue().latitude);
+			attractionDTO.setAttractionsLongitude(entry.getValue().longitude);
+			attractionDTO.setUsersLatitude(visitedLocation.location.latitude);
+			attractionDTO.setUsersLongitude(visitedLocation.location.longitude);
+			attractionDTO.setDistance(rewardsService.getDistance(visitedLocation.location, entry.getValue()));
+			attractionDTO.setRewardsPoints(rewardsService.getRewardPoints(entry.getValue(), new User(UUID.randomUUID(), "jon", "000", "jon@tourGuide.com")));
+			attractionDTOs.add(attractionDTO);
+		}
+		return attractionDTOs;
 	}
 
 	private void addShutDownHook() {
@@ -115,9 +132,9 @@ public class TourGuideService {
 	}
 
 	/**********************************************************************************
-	 * 
+	 *
 	 * Methods Below: For Internal Testing
-	 * 
+	 *
 	 **********************************************************************************/
 	private static final String tripPricerApiKey = "test-server-api-key";
 	// Database connection will be used for external users, but for testing purposes
