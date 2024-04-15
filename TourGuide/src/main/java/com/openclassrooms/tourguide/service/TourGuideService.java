@@ -8,6 +8,8 @@ import com.openclassrooms.tourguide.model.user.UserReward;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -52,9 +54,9 @@ public class TourGuideService {
 		return user.getUserRewards();
 	}
 
-	public VisitedLocation getUserLocation(User user) {
+	public VisitedLocation getUserLocation(User user) throws ExecutionException, InterruptedException {
 		VisitedLocation visitedLocation = (user.getVisitedLocations().size() > 0) ? user.getLastVisitedLocation()
-				: trackUserLocation(user);
+				: trackUserLocation(user).get();
 		return visitedLocation;
 	}
 
@@ -80,11 +82,36 @@ public class TourGuideService {
 		user.setTripDeals(providers);
 		return providers;
 	}
-
-	public VisitedLocation trackUserLocation(User user) {
+/*
+	public VisitedLocation trackUserLocation(User user){
 		VisitedLocation visitedLocation = gpsUtil.getUserLocation(user.getUserId());
 		user.addToVisitedLocations(visitedLocation);
 		rewardsService.calculateRewards(user);
+		return visitedLocation;
+	}
+*/
+	public CompletableFuture<VisitedLocation> trackUserLocation(User user) throws ExecutionException, InterruptedException {
+		CompletableFuture<VisitedLocation> visitedLocation = CompletableFuture.supplyAsync(() -> gpsUtil.getUserLocation(user.getUserId()));
+		CompletableFuture updateUserVisitedLocations = new CompletableFuture<>();
+		updateUserVisitedLocations = visitedLocation
+				.thenAccept(supplyResult -> {
+					try {
+						user.addToVisitedLocations(visitedLocation.get());
+					} catch (InterruptedException e) {
+						throw new RuntimeException(e);
+					} catch (ExecutionException e) {
+						throw new RuntimeException(e);
+					}
+				})
+				.thenRun(() -> {
+					try {
+						rewardsService.calculateRewards(user);
+					} catch (ExecutionException e) {
+						throw new RuntimeException(e);
+					} catch (InterruptedException e) {
+						throw new RuntimeException(e);
+					}
+				});
 		return visitedLocation;
 	}
 
@@ -96,7 +123,7 @@ public class TourGuideService {
 		return sortedDistanceMap;
 	}
 
-	public List<Attraction> getNearByAttractionsAsList(VisitedLocation visitedLocation) {
+	public List<Attraction> getNearByAttractionsAsList(VisitedLocation visitedLocation){
 		List<Attraction> nearbyAttractions = new ArrayList<>();
 		TreeMap<Integer, Attraction> sortedAttractionsByDistance = getAttractionsDistance(visitedLocation);
 		for (int i=0; i<5; i++) {
@@ -106,18 +133,18 @@ public class TourGuideService {
 		return nearbyAttractions;
 	}
 
-	public List<AttractionDTO> getNearByAttractionsAsJson(VisitedLocation visitedLocation) { //TODO Implement
+	public List<AttractionDTO> getNearByAttractions(VisitedLocation visitedLocation){
 		List<AttractionDTO> attractionDTOs = new ArrayList<>();
-		TreeMap<Integer, Attraction> sortedDistanceMap = new TreeMap<>();
-		for (Map.Entry<Integer, Attraction> entry : sortedDistanceMap.entrySet()) {
+		List<Attraction> sortedDistanceList = getNearByAttractionsAsList(visitedLocation);
+		for (Attraction attraction : sortedDistanceList) {
 			AttractionDTO attractionDTO = new AttractionDTO();
-			attractionDTO.setName(entry.getValue().attractionName);
-			attractionDTO.setAttractionsLatitude(entry.getValue().latitude);
-			attractionDTO.setAttractionsLongitude(entry.getValue().longitude);
+			attractionDTO.setName(attraction.attractionName);
+			attractionDTO.setAttractionsLatitude(attraction.latitude);
+			attractionDTO.setAttractionsLongitude(attraction.longitude);
 			attractionDTO.setUsersLatitude(visitedLocation.location.latitude);
 			attractionDTO.setUsersLongitude(visitedLocation.location.longitude);
-			attractionDTO.setDistance(rewardsService.getDistance(visitedLocation.location, entry.getValue()));
-			attractionDTO.setRewardsPoints(rewardsService.getRewardPoints(entry.getValue(), new User(UUID.randomUUID(), "jon", "000", "jon@tourGuide.com")));
+			attractionDTO.setDistance(rewardsService.getDistance(visitedLocation.location, attraction));
+			attractionDTO.setRewardsPoints(rewardsService.getRewardPoints(attraction, new User(UUID.randomUUID(), "jon", "000", "jon@tourGuide.com")));
 			attractionDTOs.add(attractionDTO);
 		}
 		return attractionDTOs;

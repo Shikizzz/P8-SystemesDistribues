@@ -1,7 +1,10 @@
 package com.openclassrooms.tourguide.service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 
 import org.springframework.stereotype.Service;
 
@@ -36,9 +39,9 @@ public class RewardsService {
 	public void setDefaultProximityBuffer() {
 		proximityBuffer = defaultProximityBuffer;
 	}
-	
-	public void calculateRewards(User user) {
-		List<VisitedLocation> userLocations = user.getVisitedLocations().stream().toList(); // why ?
+/*
+	public void calculateRewards(User user){
+		List<VisitedLocation> userLocations = user.getVisitedLocations().stream().toList();
 		List<Attraction> attractions = gpsUtil.getAttractions();
 
 		List<UserReward> userRewards = user.getUserRewards();
@@ -55,13 +58,45 @@ public class RewardsService {
 			}
 		}
 		user.setUserRewards(modifiableUserRewards);
+	}*/
+
+	public void calculateRewards(User user) throws ExecutionException, InterruptedException {
+		List<VisitedLocation> locations = user.getVisitedLocations();
+		List<CompletableFuture<VisitedLocation>> userLocations = new ArrayList<>();
+		for(VisitedLocation visitedLocation : locations){
+			userLocations.add(CompletableFuture.supplyAsync(()-> visitedLocation));
+		}
+		List<Attraction> attractions = gpsUtil.getAttractions();
+
+		List<UserReward> userRewards = user.getUserRewards();
+		CopyOnWriteArrayList<UserReward> modifiableUserRewards = new CopyOnWriteArrayList<>(userRewards);
+
+		for(CompletableFuture<VisitedLocation> visitedLocation : userLocations) {
+			for(Attraction attraction : attractions) {
+				if(modifiableUserRewards.stream()
+						.filter(r -> r.attraction.attractionName.equals(attraction.attractionName)).count() == 0) {
+					if(nearAttraction(visitedLocation.get(), attraction)) {
+						visitedLocation.thenRun(()-> {
+							try {
+								modifiableUserRewards.add(new UserReward(visitedLocation.get(), attraction, getRewardPoints(attraction, user)));
+							} catch (InterruptedException e) {
+								throw new RuntimeException(e);
+							} catch (ExecutionException e) {
+								throw new RuntimeException(e);
+							}
+						});
+					}
+				}
+			}
+		}
+		user.setUserRewards(modifiableUserRewards);
 	}
 
-	public boolean isWithinAttractionProximity(Attraction attraction, Location location) {
+	public boolean isWithinAttractionProximity(Attraction attraction, Location location){
 		return getDistance(attraction, location) > attractionProximityRange ? false : true;
 	}
 
-	private boolean nearAttraction(VisitedLocation visitedLocation, Attraction attraction) {
+	private boolean nearAttraction(VisitedLocation visitedLocation, Attraction attraction){
 		return getDistance(attraction, visitedLocation.location) > proximityBuffer ? false : true;
 	}
 	
@@ -69,11 +104,16 @@ public class RewardsService {
 		return rewardsCentral.getAttractionRewardPoints(attraction.attractionId, user.getUserId());
 	}
 	
-	public double getDistance(Location loc1, Location loc2) {
-        double lat1 = Math.toRadians(loc1.latitude);
-        double lon1 = Math.toRadians(loc1.longitude);
-        double lat2 = Math.toRadians(loc2.latitude);
-        double lon2 = Math.toRadians(loc2.longitude);
+	public double getDistance(Location loc1, Location loc2){
+		double lat1 = Math.toRadians(loc1.latitude);
+		double lon1 = Math.toRadians(loc1.longitude);
+		double lat2 = Math.toRadians(loc2.latitude);
+		double lon2 = Math.toRadians(loc2.longitude);
+/*
+		CompletableFuture<Double> angle =
+				CompletableFuture.supplyAsync(()-> Math.sin(lat1) * Math.sin(lat2))
+						.thenCombine(CompletableFuture.supplyAsync(()->Math.cos(lat1) * Math.cos(lat2) * Math.cos(lon1 - lon2)), (a, b)->Math.acos(a+b));
+*/
 
         double angle = Math.acos(Math.sin(lat1) * Math.sin(lat2)
                                + Math.cos(lat1) * Math.cos(lat2) * Math.cos(lon1 - lon2));
