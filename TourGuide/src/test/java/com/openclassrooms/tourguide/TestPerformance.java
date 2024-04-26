@@ -54,7 +54,7 @@ public class TestPerformance {
 		RewardsService rewardsService = new RewardsService(gpsUtil, new RewardCentral());
 		// Users should be incremented up to 100,000, and test finishes within 15
 		// minutes
-		int numberOfUsers = 1000 ;
+		int numberOfUsers = 100000;
 		InternalTestHelper.setInternalUserNumber(numberOfUsers);
 		TourGuideService tourGuideService = new TourGuideService(gpsUtil, rewardsService);
 
@@ -79,13 +79,13 @@ public class TestPerformance {
 
 	//@Disabled
 	@Test
-	public void highVolumeGetRewards() {
+	public void highVolumeGetRewards() throws InterruptedException {
 		GpsUtil gpsUtil = new GpsUtil();
 		RewardsService rewardsService = new RewardsService(gpsUtil, new RewardCentral());
 
 		// Users should be incremented up to 100,000, and test finishes within 20
 		// minutes
-		InternalTestHelper.setInternalUserNumber(1000);
+		InternalTestHelper.setInternalUserNumber(100000);
 		StopWatch stopWatch = new StopWatch();
 		stopWatch.start();
 		TourGuideService tourGuideService = new TourGuideService(gpsUtil, rewardsService);
@@ -104,10 +104,15 @@ public class TestPerformance {
 			}
 		});
 		for (User user : allUsers) {
-			assertTrue(user.getUserRewards().size() > 0);
+			while(user.getUserRewards().isEmpty()){
+				TimeUnit.MILLISECONDS.sleep(10);
+			}
 		}
 		stopWatch.stop();
 		tourGuideService.tracker.stopTracking();
+		for (User user : allUsers) {
+			assertTrue(user.getUserRewards().size() > 0);
+		}
 
 		System.out.println("highVolumeGetRewards: Time Elapsed: " + TimeUnit.MILLISECONDS.toSeconds(stopWatch.getTime())
 				+ " seconds.");

@@ -10,6 +10,8 @@ import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -33,6 +35,7 @@ public class TourGuideService {
 	private final TripPricer tripPricer = new TripPricer();
 	public final Tracker tracker;
 	boolean testMode = true;
+	private ExecutorService executorService = Executors.newFixedThreadPool(128);
 
 	public TourGuideService(GpsUtil gpsUtil, RewardsService rewardsService) {
 		this.gpsUtil = gpsUtil;
@@ -82,33 +85,18 @@ public class TourGuideService {
 		user.setTripDeals(providers);
 		return providers;
 	}
-/*
-	public VisitedLocation trackUserLocation(User user){
-		VisitedLocation visitedLocation = gpsUtil.getUserLocation(user.getUserId());
-		user.addToVisitedLocations(visitedLocation);
-		rewardsService.calculateRewards(user);
-		return visitedLocation;
-	}
-*/
+
 	public CompletableFuture<VisitedLocation> trackUserLocation(User user) throws ExecutionException, InterruptedException {
-		CompletableFuture<VisitedLocation> visitedLocation = CompletableFuture.supplyAsync(() -> gpsUtil.getUserLocation(user.getUserId()));
+		CompletableFuture<VisitedLocation> visitedLocation = CompletableFuture.supplyAsync(() -> gpsUtil.getUserLocation(user.getUserId()), executorService);
 		CompletableFuture updateUserVisitedLocations = new CompletableFuture<>();
 		updateUserVisitedLocations = visitedLocation
 				.thenAccept(supplyResult -> {
 					try {
 						user.addToVisitedLocations(visitedLocation.get());
-					} catch (InterruptedException e) {
-						throw new RuntimeException(e);
-					} catch (ExecutionException e) {
-						throw new RuntimeException(e);
-					}
-				})
-				.thenRun(() -> {
-					try {
 						rewardsService.calculateRewards(user);
-					} catch (ExecutionException e) {
-						throw new RuntimeException(e);
 					} catch (InterruptedException e) {
+						throw new RuntimeException(e);
+					} catch (ExecutionException e) {
 						throw new RuntimeException(e);
 					}
 				});
