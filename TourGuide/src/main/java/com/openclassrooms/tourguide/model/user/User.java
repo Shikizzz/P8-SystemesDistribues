@@ -1,4 +1,4 @@
-package com.openclassrooms.tourguide.user;
+package com.openclassrooms.tourguide.model.user;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -60,6 +60,7 @@ public class User {
 	public void addToVisitedLocations(VisitedLocation visitedLocation) {
 		visitedLocations.add(visitedLocation);
 	}
+
 	
 	public List<VisitedLocation> getVisitedLocations() {
 		return visitedLocations;
@@ -70,11 +71,15 @@ public class User {
 	}
 	
 	public void addUserReward(UserReward userReward) {
-		if(userRewards.stream().filter(r -> !r.attraction.attractionName.equals(userReward.attraction)).count() == 0) {
+		if(userRewards.stream().filter(r -> r.attraction.attractionName.equals(userReward.attraction)).count() == 0) {
 			userRewards.add(userReward);
 		}
 	}
-	
+
+	public void setUserRewards(List<UserReward> userRewards) { //ADDED
+		this.userRewards = userRewards;
+	}
+
 	public List<UserReward> getUserRewards() {
 		return userRewards;
 	}
