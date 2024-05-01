@@ -31,7 +31,7 @@ public class RewardsService {
     public RewardsService(GpsUtil gpsUtil, RewardCentral rewardCentral) {
         this.gpsUtil = gpsUtil;
         this.rewardsCentral = rewardCentral;
-        attractions = gpsUtil.getAttractions();
+        this.attractions = gpsUtil.getAttractions();
     }
 
     public void setProximityBuffer(int proximityBuffer) {
