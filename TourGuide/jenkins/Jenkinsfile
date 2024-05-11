@@ -1,26 +1,41 @@
 
-
 pipeline {
     agent any
-    options {
-        skipStagesAfterUnstable()
+
+    tools {
+        maven "Maven_Home"
     }
+
     stages {
         stage('Build') {
             steps {
-                sh 'mvn -B -DskipTests clean package'
+                git 'https://github.com/Shikizzz/P8-SystemesDistribues.git'
+
+                sh script:'''
+                    cd TourGuide
+                    mvn install:install-file -Dfile=libs/gpsUtil.jar -DgroupId=gpsUtil -DartifactId=gpsUtil -Dversion=1.0.0 -Dpackaging=jar
+                    mvn install:install-file -Dfile=libs/RewardCentral.jar -DgroupId=rewardCentral -DartifactId=rewardCentral -Dversion=1.0.0 -Dpackaging=jar
+                    mvn install:install-file -Dfile=libs/TripPricer.jar -DgroupId=tripPricer -DartifactId=tripPricer -Dversion=1.0.0 -Dpackaging=jar
+                    mvn clean compile
+                  '''
             }
         }
         stage('Test') {
             steps {
-                sh 'mvn test'
+                sh script:'''
+                    cd TourGuide
+                    mvn test -Dtest=!TestPerformance
+                '''
             }
         }
-        stage('Deliver') { 
+        stage('Building Artifacts') {
             steps {
-                sh './jenkins/scripts/deliver.sh' 
+                sh script:'''
+                    cd TourGuide
+                    mvn -B -DskipTests package
+                '''
+                archiveArtifacts 'TourGuide/target/*.jar'
             }
         }
     }
 }
-
